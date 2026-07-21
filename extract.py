@@ -1,73 +1,50 @@
-import os
-from pypdf import PdfReader
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from langchain_community.llms import Ollama
-from database import registrar_documento_completo # Importamos el guardado en BD
+# Archivo: extract.py
+import sqlite3
 
-# 1. Definimos la estructura exacta que queremos extraer de la factura usando Pydantic
-class ItemFactura(BaseModel):
-    descripcion: str = Field(description="Nombre o descripción del producto")
-    cantidad: float = Field(description="Cantidad adquirida")
-    precio: Optional[float] = Field(None, description="Precio unitario")
-    lote: Optional[str] = Field(None, description="Número de lote de fabricación")
-    caducidad: Optional[str] = Field(None, description="Fecha de caducidad en formato AAAA-MM-DD")
+# ==========================================
+# FUNCIONES PARA EL BOTÓN 1 (TABLAS)
+# ==========================================
 
-class DocumentoEstructurado(BaseModel):
-    tipo: str = Field(description="Tipo de documento, ej: Factura, Packing List, COA")
-    numero: str = Field(description="Número de factura o documento")
-    proveedor: str = Field(description="Nombre de la empresa proveedora")
-    fecha: str = Field(description="Fecha de emisión del documento en formato AAAA-MM-DD")
-    items: List[ItemFactura] = Field(description="Lista de productos/ítems detallados")
+def evaluar_y_guardar_documento(datos):
+    """
+    Función puente. Más adelante aquí escribiremos la lógica para 
+    guardar las tablas extraídas en la base de datos o en Excel.
+    """
+    print("Módulo de tablas conectado. Datos listos para ser evaluados y guardados.")
+    pass
 
-# 2. Función para leer texto de un PDF local
-def extraer_texto_pdf(ruta_pdf):
-    if not os.path.exists(ruta_pdf):
-        raise FileNotFoundError(f"No se encontró el archivo: {ruta_pdf}")
-    
-    reader = PdfReader(ruta_pdf)
-    texto = ""
-    for pagina in reader.pages:
-        texto += pagina.extract_text() or ""
-    return texto
+# ==========================================
+# FUNCIONES PARA EL BOTÓN 4 (IA OLLAMA)
+# ==========================================
 
-# 3. Función principal de evaluación con LangChain y Ollama
-def evaluar_y_guardar_documento(ruta_pdf):
-    print(f"[PROCESO] Leyendo PDF: {ruta_pdf}")
-    texto_documento = extraer_texto_pdf(ruta_pdf)
+def crear_tabla_si_no_existe():
+    """Crea la tabla en SQLite si es la primera vez que se ejecuta."""
+    conexion = sqlite3.connect("agiliza_tech.db")
+    cursor = conexion.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS registro_documentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            estado_factura TEXT,
+            estado_empaque TEXT,
+            estado_coa TEXT
+        )
+    ''')
+    conexion.commit()
+    conexion.close()
+
+def guardar_validacion_checklist(factura, empaque, coa):
+    """Guarda el resultado de la IA en la base de datos SQLite."""
+    crear_tabla_si_no_existe()
     
-    # Configuramos Ollama de forma local (usa 'llama3', 'mistral' o 'phi3')
-    llm = Ollama(model="llama3", temperature=0)
+    conexion = sqlite3.connect("agiliza_tech.db")
+    cursor = conexion.cursor()
     
-    prompt = (
-        "Analiza el siguiente texto extraído de un documento comercial y estructura la información. "
-        "Debes responder ÚNICAMENTE con un objeto JSON válido que cumpla este esquema:\n"
-        f"{DocumentoEstructurado.schema_json()}\n\n"
-        f"Texto del documento:\n{texto_documento}"
-    )
+    cursor.execute('''
+        INSERT INTO registro_documentos (estado_factura, estado_empaque, estado_coa)
+        VALUES (?, ?, ?)
+    ''', (factura, empaque, coa))
     
-    print("[PROCESO] Enviando texto a Ollama local...")
-    respuesta_raw = llm.invoke(prompt)
-    
-    # Parseamos la respuesta JSON del modelo
-    import json
-    try:
-        datos = json.loads(respuesta_raw)
-        
-        # Estructuramos los datos para nuestra función de base de datos
-        doc_info = {
-            "tipo": datos.get("tipo", "Factura"),
-            "numero": datos.get("numero"),
-            "proveedor": datos.get("proveedor"),
-            "fecha": datos.get("fecha")
-        }
-        
-        lista_items = datos.get("items", [])
-        
-        # Guardamos en nuestra Base de Datos SQLite
-        doc_id = registrar_documento_completo(doc_info, lista_items)
-        return doc_id, doc_info
-        
-    except Exception as e:
-        print(f"[ERROR] No se pudo estructurar el JSON de Ollama: {e}")
-        return None, None
+    conexion.commit()
+    conexion.close()
+    print("Datos de IA guardados en la base de datos con éxito.")
