@@ -35,3 +35,32 @@ def consultar_llama3(prompt, texto_documento):
             return "Error en el servidor de IA."
     except Exception:
         return "Error: Asegúrate de que Ollama esté abierto en tu PC."
+
+def extraer_dato_especifico(tipo_dato, texto_documento):
+    """Pide a Llama 3 que extraiga un dato muy puntual de un texto, sin dar explicaciones."""
+    url = "http://localhost:11434/api/generate"
+    
+    # Instrucción estricta para que la IA no hable de más
+    prompt = (
+        f"Eres un experto en extracción de datos aduaneros. "
+        f"Tu única tarea es encontrar el '{tipo_dato}' en el siguiente documento. "
+        f"Responde SOLO con el valor exacto encontrado (número y unidad de medida). "
+        f"NO escribas oraciones completas, NO des explicaciones. Si no lo encuentras, responde 'No encontrado'."
+    )
+    
+    prompt_completo = f"{prompt}\n\nTexto del documento:\n{texto_documento}"
+    
+    datos = {
+        "model": "llama3",
+        "prompt": prompt_completo,
+        "stream": False
+    }
+    
+    try:
+        respuesta = requests.post(url, json=datos)
+        if respuesta.status_code == 200:
+            return respuesta.json()['response'].strip()
+        else:
+            return "Error en servidor IA"
+    except Exception:
+        return "Error de conexión local"

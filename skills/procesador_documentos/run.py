@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
-    from extract import evaluar_y_guardar_documento
+    from AGIL_PRO.extractor_pdf import evaluar_y_guardar_documento
 except ImportError as e:
     print(f"Error: No se pudo importar el motor de extracción. Verifica que 'extract.py' esté en la carpeta raíz. Detalles: {e}")
     sys.exit(1)

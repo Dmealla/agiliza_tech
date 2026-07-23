@@ -14,7 +14,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Ahora Python encontrará perfectamente estos archivos en la misma carpeta
-from extract import evaluar_y_guardar_documento
+from AGIL_PRO.extractor_pdf import evaluar_y_guardar_documento
 from alertas import generar_reporte_vencimientos
 
 # Configuración de rutas locales

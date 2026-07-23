@@ -9,6 +9,7 @@ from extract import evaluar_y_guardar_documento
 from alertas import generar_reporte_vencimientos
 from ia_ollama import extraer_texto_pdf, consultar_llama3
 from extract import guardar_validacion_checklist
+from ia_ollama import extraer_texto_pdf, consultar_llama3, extraer_dato_especifico
 
 # ==========================================
 # 1. FUNCIONES DE ACCIÓN (LÓGICA)
@@ -219,6 +220,85 @@ def abrir_checklist_ia():
         font=("Arial", 12, "bold")
     ).pack(pady=10)
 
+# ==========================================
+# SECCIÓN: PASO 2 - CARTA Y FORMULARIO
+# ==========================================
+
+def ejecutar_extraccion_hilo(tipo_dato, caja_texto, ruta_archivo):
+    """Hilo secundario que se comunica con la IA para no trabar la ventana."""
+    # 1. Leemos el PDF
+    texto_pdf = extraer_texto_pdf(ruta_archivo)
+    
+    if "Error" in texto_pdf:
+        caja_texto.delete(0, tk.END)
+        caja_texto.insert(0, "❌ Error al leer PDF")
+        return
+
+    caja_texto.delete(0, tk.END)
+    caja_texto.insert(0, "🤖 Llama 3 buscando...")
+    ventana_paso2.update()
+
+    # 2. Pedimos el dato exacto a Llama 3
+    dato_obtenido = extraer_dato_especifico(tipo_dato, texto_pdf)
+    
+    # 3. Colocamos el resultado en la caja de texto
+    caja_texto.delete(0, tk.END)
+    caja_texto.insert(0, dato_obtenido)
+
+def procesar_extraccion_datos(tipo_dato, caja_texto):
+    """Abre el explorador de archivos y lanza la extracción."""
+    ruta_archivo = filedialog.askopenfilename(
+        title=f"Cargar documento para extraer {tipo_dato}",
+        filetypes=[("Archivos PDF", "*.pdf")]
+    )
+    if ruta_archivo:
+        # Ponemos la caja en estado de espera visual
+        caja_texto.delete(0, tk.END)
+        caja_texto.insert(0, "⏳ Preparando...")
+        ventana_paso2.update()
+        
+        # Iniciamos el hilo para no congelar la app
+        hilo = threading.Thread(target=ejecutar_extraccion_hilo, args=(tipo_dato, caja_texto, ruta_archivo))
+        hilo.start()
+
+def abrir_paso2_carta():
+    """Construye la ventana visual para la extracción de datos de la Carta."""
+    global ventana_paso2 
+    
+    ventana_paso2 = tk.Toplevel()
+    ventana_paso2.title("Paso 2 - Datos para Carta y Formulario")
+    ventana_paso2.geometry("600x350")
+    ventana_paso2.configure(padx=20, pady=20)
+
+    tk.Label(ventana_paso2, text="Extracción de Datos Clave (SENASAG)", font=("Arial", 14, "bold")).pack(pady=(0, 20))
+
+    # --- Fila 1: Valor Total (Factura) ---
+    frame_valor = tk.Frame(ventana_paso2)
+    frame_valor.pack(fill="x", pady=10)
+    tk.Label(frame_valor, text="1. Valor Total ($USD):", width=20, anchor="w", font=("Arial", 10, "bold")).pack(side="left")
+    txt_valor = tk.Entry(frame_valor, width=30)
+    txt_valor.pack(side="left", padx=10)
+    tk.Button(frame_valor, text="Extraer de Factura", command=lambda: procesar_extraccion_datos("Valor Total", txt_valor)).pack(side="left")
+
+    # --- Fila 2: Peso Neto (Lista de Empaque) ---
+    frame_peso = tk.Frame(ventana_paso2)
+    frame_peso.pack(fill="x", pady=10)
+    tk.Label(frame_peso, text="2. Peso Neto (Kg/Lt):", width=20, anchor="w", font=("Arial", 10, "bold")).pack(side="left")
+    txt_peso = tk.Entry(frame_peso, width=30)
+    txt_peso.pack(side="left", padx=10)
+    tk.Button(frame_peso, text="Extraer de Empaque", command=lambda: procesar_extraccion_datos("Peso Neto", txt_peso)).pack(side="left")
+
+    ttk.Separator(ventana_paso2, orient='horizontal').pack(fill='x', pady=20)
+
+    # Botón Final
+    tk.Button(
+        ventana_paso2, 
+        text="Copiar Datos al Portapapeles", 
+        command=lambda: messagebox.showinfo("Info", "Función de copiado en construcción."),
+        bg="#E65100", 
+        fg="white", 
+        font=("Arial", 12, "bold")
+    ).pack(pady=10)
 
 # ==========================================
 # 2. INTERFAZ GRÁFICA (VISTA)
@@ -251,6 +331,15 @@ def construir_interfaz():
     # Botón 4 (¡NUEVO!)
     btn_checklist = tk.Button(ventana, text="4. Iniciar Checklist Inteligente", command=abrir_checklist_ia, bg="#9C27B0", fg="white", font=("Arial", 12), width=25)
     btn_checklist.pack(pady=10)
+
+    # Cambia esta línea:
+    ventana.geometry("500x450")
+
+    # (Tus botones 1, 2, 3 y 4 van aquí...)
+
+    # Botón 5 (¡NUEVO!)
+    btn_paso2 = tk.Button(ventana, text="5. Generar Carta y Formulario (Paso 2)", command=abrir_paso2_carta, bg="#607D8B", fg="white", font=("Arial", 12), width=35)
+    btn_paso2.pack(pady=10)
 
     # Encender la ventana (UNA SOLA VEZ AL FINAL)
     ventana.mainloop()
